@@ -1,0 +1,372 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Code System Hub</title>
+
+<style>
+body {
+    font-family: Arial;
+    background: #0f172a;
+    color: white;
+    display: flex;
+    justify-content: center;
+    padding: 30px;
+}
+
+.container {
+    width: 420px;
+    background: #1e293b;
+    padding: 20px;
+    border-radius: 12px;
+    box-shadow: 0 0 20px rgba(0,0,0,0.5);
+}
+
+h2 { text-align:center; }
+
+input, button {
+    width: 100%;
+    padding: 10px;
+    margin-top: 8px;
+    border-radius: 6px;
+    border: none;
+}
+
+input {
+    background: #334155;
+    color: white;
+}
+
+button {
+    background: #22c55e;
+    font-weight: bold;
+    cursor: pointer;
+}
+
+button:hover {
+    background: #16a34a;
+}
+
+.section {
+    margin-top: 20px;
+    padding-top: 15px;
+    border-top: 1px solid #334155;
+}
+
+.msg {
+    text-align: center;
+    margin-top: 10px;
+    font-weight: bold;
+}
+
+.codeItem {
+    background: #334155;
+    padding: 8px;
+    margin-top: 8px;
+    border-radius: 6px;
+}
+
+.smallBtn {
+    width: auto;
+    padding: 5px 8px;
+    font-size: 12px;
+    margin-top: 5px;
+    background: #ef4444;
+}
+
+.editBtn {
+    background: #3b82f6;
+}
+
+.toggleBtn {
+    background: #f59e0b;
+}
+
+.logBox {
+    background: #0b1220;
+    padding: 10px;
+    margin-top: 10px;
+    border-radius: 6px;
+    max-height: 150px;
+    overflow-y: auto;
+    font-size: 12px;
+}
+
+.pinBtn {
+    position: fixed;
+    top: 15px;
+    right: 15px;
+    width: auto;
+    padding: 8px 12px;
+    font-size: 12px;
+    border-radius: 6px;
+    background: #3b82f6;
+    color: white;
+    border: none;
+    cursor: pointer;
+    z-index: 999;
+}
+</style>
+</head>
+
+<body>
+
+<button class="pinBtn" onclick="openPinMenu()">🔐 PIN</button>
+
+<div class="container">
+
+<h2>🎁 Code System</h2>
+
+<input id="redeemInput" placeholder="Enter code">
+<button onclick="redeem()">Redeem</button>
+<div class="msg" id="redeemMsg"></div>
+
+<div class="section">
+<h3>⚙️ Control Panel</h3>
+
+<input id="adminPass" type="password" placeholder="Enter admin password">
+<button onclick="unlock()">Unlock Panel</button>
+
+<button id="toggleBtn" class="toggleBtn" onclick="togglePanel()" style="display:none;">
+Close Panel
+</button>
+
+<div id="adminArea" style="display:none;">
+
+    <input id="newCode" placeholder="New code">
+    <input id="newReward" placeholder="Reward">
+
+    <button onclick="addCode()">Add Code</button>
+
+    <button onclick="generateRecovery()" style="background:#3b82f6;">
+        Generate 6-Digit Recovery Code
+    </button>
+
+    <h4>Existing Codes</h4>
+    <div id="list"></div>
+
+    <h4>🔔 Redeem Log (ADMIN ONLY)</h4>
+
+    <button onclick="clearLogs()" style="background:#ef4444; margin-bottom:8px;">
+        Clear Logs
+    </button>
+
+    <div id="log" class="logBox"></div>
+
+</div>
+</div>
+</div>
+
+<script>
+
+let codes = JSON.parse(localStorage.getItem("codes")) || {
+    "WELCOME": "100 Coins",
+    "VIP": "Exclusive Skin"
+};
+
+let logs = JSON.parse(localStorage.getItem("logs")) || [];
+let userPin = localStorage.getItem("userPin") || null;
+let recoveryCode = localStorage.getItem("recoveryCode") || null;
+
+let isUnlocked = false;
+
+// SAVE
+function save() {
+    localStorage.setItem("codes", JSON.stringify(codes));
+    render();
+}
+
+function saveLogs() {
+    localStorage.setItem("logs", JSON.stringify(logs));
+}
+
+// 🌐 IP
+async function getIP() {
+    try {
+        let res = await fetch("https://api.ipify.org?format=json");
+        let data = await res.json();
+        return data.ip;
+    } catch {
+        return "Unknown";
+    }
+}
+
+// 🎲 generate recovery code
+function generateRecovery() {
+    recoveryCode = Math.floor(100000 + Math.random() * 900000).toString();
+    localStorage.setItem("recoveryCode", recoveryCode);
+    alert("🔐 Recovery Code: " + recoveryCode + "\nUse it in PIN box to reset PIN");
+}
+
+// 🔐 PIN SYSTEM (UPDATED)
+function openPinMenu() {
+
+    let input = prompt("Enter PIN OR recovery code:");
+
+    // recovery override
+    if (recoveryCode && input === recoveryCode) {
+        let newPin = prompt("Set NEW PIN:");
+        if (!newPin || newPin.length < 4) return alert("Too short");
+
+        userPin = newPin;
+        localStorage.setItem("userPin", userPin);
+
+        alert("✅ PIN reset successful!");
+        return;
+    }
+
+    if (!userPin) {
+        let pin = prompt("Create PIN:");
+        if (!pin || pin.length < 4) return alert("Too short");
+
+        userPin = pin;
+        localStorage.setItem("userPin", userPin);
+        alert("PIN created!");
+        return;
+    }
+
+    if (input !== userPin) return alert("Wrong PIN");
+
+    alert("✔ Access granted");
+}
+
+// 🔥 REDEEM
+async function redeem() {
+    let codeInput = document.getElementById("redeemInput");
+    let code = codeInput.value.trim().toUpperCase();
+    let msg = document.getElementById("redeemMsg");
+
+    if (!codes[code]) {
+        msg.style.color = "#ef4444";
+        msg.innerText = "❌ Invalid code";
+        return;
+    }
+
+    let ip = await getIP();
+
+    let enteredPin = null;
+    let verified = true;
+    let pinLast2 = "N/A";
+
+    if (userPin) {
+        enteredPin = prompt("Enter PIN:");
+        if (enteredPin === null) return;
+
+        verified = (enteredPin === userPin);
+        pinLast2 = enteredPin.slice(-2);
+    }
+
+    let reward = codes[code];
+    let time = new Date().toLocaleTimeString();
+
+    msg.style.color = verified ? "#22c55e" : "#f59e0b";
+    msg.innerText = verified ? "🎉 Reward: " + reward : "⚠ Not verified";
+
+    logs.unshift({
+        time,
+        code,
+        reward,
+        ip,
+        pinLast2
+    });
+
+    saveLogs();
+    renderLogs();
+
+    delete codes[code];
+    save();
+
+    codeInput.value = "";
+}
+
+// ADMIN
+function unlock() {
+    let pass = document.getElementById("adminPass").value;
+
+    if (pass === "HiPass") {
+        isUnlocked = true;
+        document.getElementById("adminArea").style.display = "block";
+        document.getElementById("toggleBtn").style.display = "block";
+        renderLogs();
+    } else {
+        alert("Wrong password");
+    }
+}
+
+function togglePanel() {
+    let panel = document.getElementById("adminArea");
+    let btn = document.getElementById("toggleBtn");
+
+    if (panel.style.display === "block") {
+        panel.style.display = "none";
+        isUnlocked = false;
+        document.getElementById("adminPass").value = "";
+    } else {
+        if (!isUnlocked) return alert("Enter password first!");
+        panel.style.display = "block";
+    }
+}
+
+// CODE SYSTEM
+function addCode() {
+    let code = document.getElementById("newCode").value.trim().toUpperCase();
+    let reward = document.getElementById("newReward").value;
+
+    if (!code || !reward) return alert("Fill all fields");
+    if (codes[code]) return alert("Code exists");
+
+    codes[code] = reward;
+    save();
+
+    document.getElementById("newCode").value = "";
+    document.getElementById("newReward").value = "";
+}
+
+// RENDER
+function render() {
+    let list = document.getElementById("list");
+    list.innerHTML = "";
+
+    for (let c of Object.keys(codes).sort()) {
+        list.innerHTML += `
+        <div class="codeItem">
+            <b>${c}</b> → ${codes[c]}
+        </div>`;
+    }
+}
+
+// LOGS
+function renderLogs() {
+    let log = document.getElementById("log");
+    log.innerHTML = "";
+
+    if (!isUnlocked) {
+        log.innerHTML = "🔒 Unlock panel to view logs";
+        return;
+    }
+
+    for (let l of logs) {
+        log.innerHTML += `
+        <div class="codeItem">
+            ⏰ ${l.time}<br>
+            🔑 ${l.code}<br>
+            🎁 ${l.reward}<br>
+            🌐 IP: ${l.ip}<br>
+            🔐 PIN last 2: ${l.pinLast2}
+        </div>`;
+    }
+}
+
+function clearLogs() {
+    logs = [];
+    saveLogs();
+    renderLogs();
+}
+
+render();
+renderLogs();
+
+</script>
+
+</body>
+</html>
