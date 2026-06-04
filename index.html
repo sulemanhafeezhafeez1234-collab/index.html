@@ -71,11 +71,12 @@ button:hover {
     padding: 5px 8px;
     font-size: 12px;
     margin-top: 5px;
-    background: #ef4444;
+    cursor: pointer;
 }
 
 .editBtn {
     background: #3b82f6;
+    color: white;
 }
 
 .toggleBtn {
@@ -180,7 +181,7 @@ function saveLogs() {
     localStorage.setItem("logs", JSON.stringify(logs));
 }
 
-// 🌐 IP
+// IP
 async function getIP() {
     try {
         let res = await fetch("https://api.ipify.org?format=json");
@@ -191,26 +192,23 @@ async function getIP() {
     }
 }
 
-// 🎲 generate recovery code
+// Recovery
 function generateRecovery() {
     recoveryCode = Math.floor(100000 + Math.random() * 900000).toString();
     localStorage.setItem("recoveryCode", recoveryCode);
-    alert("🔐 Recovery Code: " + recoveryCode + "\nUse it in PIN box to reset PIN");
+    alert("🔐 Recovery Code: " + recoveryCode);
 }
 
-// 🔐 PIN SYSTEM (UPDATED)
+// PIN
 function openPinMenu() {
-
     let input = prompt("Enter PIN OR recovery code:");
 
-    // recovery override
     if (recoveryCode && input === recoveryCode) {
         let newPin = prompt("Set NEW PIN:");
         if (!newPin || newPin.length < 4) return alert("Too short");
 
         userPin = newPin;
         localStorage.setItem("userPin", userPin);
-
         alert("✅ PIN reset successful!");
         return;
     }
@@ -230,15 +228,15 @@ function openPinMenu() {
     alert("✔ Access granted");
 }
 
-// 🔥 REDEEM
+// Redeem
 async function redeem() {
     let codeInput = document.getElementById("redeemInput");
     let code = codeInput.value.trim().toUpperCase();
     let msg = document.getElementById("redeemMsg");
 
     if (!codes[code]) {
-        msg.style.color = "#ef4444";
         msg.innerText = "❌ Invalid code";
+        msg.style.color = "red";
         return;
     }
 
@@ -259,17 +257,10 @@ async function redeem() {
     let reward = codes[code];
     let time = new Date().toLocaleTimeString();
 
-    msg.style.color = verified ? "#22c55e" : "#f59e0b";
     msg.innerText = verified ? "🎉 Reward: " + reward : "⚠ Not verified";
+    msg.style.color = verified ? "green" : "orange";
 
-    logs.unshift({
-        time,
-        code,
-        reward,
-        ip,
-        pinLast2
-    });
-
+    logs.unshift({ time, code, reward, ip, pinLast2 });
     saveLogs();
     renderLogs();
 
@@ -295,7 +286,6 @@ function unlock() {
 
 function togglePanel() {
     let panel = document.getElementById("adminArea");
-    let btn = document.getElementById("toggleBtn");
 
     if (panel.style.display === "block") {
         panel.style.display = "none";
@@ -307,7 +297,7 @@ function togglePanel() {
     }
 }
 
-// CODE SYSTEM
+// ADD CODE
 function addCode() {
     let code = document.getElementById("newCode").value.trim().toUpperCase();
     let reward = document.getElementById("newReward").value;
@@ -322,6 +312,24 @@ function addCode() {
     document.getElementById("newReward").value = "";
 }
 
+// EDIT CODE
+function editCode(code) {
+    let newReward = prompt("Edit reward:", codes[code]);
+    if (newReward === null) return;
+    if (newReward.trim() === "") return alert("Empty not allowed");
+
+    codes[code] = newReward.trim();
+    save();
+}
+
+// DELETE CODE
+function deleteCode(code) {
+    if (!confirm("Delete code " + code + "?")) return;
+
+    delete codes[code];
+    save();
+}
+
 // RENDER
 function render() {
     let list = document.getElementById("list");
@@ -330,7 +338,10 @@ function render() {
     for (let c of Object.keys(codes).sort()) {
         list.innerHTML += `
         <div class="codeItem">
-            <b>${c}</b> → ${codes[c]}
+            <b>${c}</b> → ${codes[c]}<br>
+
+            <button class="smallBtn editBtn" onclick="editCode('${c}')">Edit</button>
+            <button class="smallBtn" onclick="deleteCode('${c}')">Delete</button>
         </div>`;
     }
 }
